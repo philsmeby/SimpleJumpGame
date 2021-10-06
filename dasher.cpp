@@ -3,6 +3,7 @@
 #define global_variable static
 
 global_variable int windowHeight;
+global_variable int windowWidth;
 
 struct AnimData
 {
@@ -37,39 +38,37 @@ AnimData updateAnimData(AnimData *data, float deltaTime, int maxFrame)
 
 int main()
 {
-	// Array with windows info
-	int windowDimensions[2];
-	windowDimensions[0] = 512;
-	windowDimensions[1] = 380;
+	windowHeight = 380;
+	windowWidth = 512;
 
 	// Initialize the window
-	InitWindow(windowDimensions[0], windowDimensions[1], "Dapper Dasher!");
+	InitWindow(windowWidth, windowHeight, "Dapper Dasher!");
 
 	const int gravity{1'000};
 
 	// nebula variables
-	Texture2D nebula = LoadTexture("textures/12_nebula_sprintsheet.png");
-	const int sizeofNebulae{3};
-	AnimData nebulae[sizeofNebulae]{};
+	Texture2D nebula = LoadTexture("textures/12_nebula_spritesheet.png");
+	const int sizeOfNebulae{5};
+	AnimData nebulae[sizeOfNebulae]{};
 
-	for (int i = 0; i < sizeofNebulae; i++)
+	for (int i = 0; i < sizeOfNebulae; i++)
 	{
 		nebulae[i].rec.x = 0.0f;
 		nebulae[i].rec.y = 0.0f;
 		nebulae[i].rec.width = nebula.width/8;
 		nebulae[i].rec.height = nebula.height/8;
-		nebulae[i].pos.y = windowDimensions[1] - nebula.height/8;
+		nebulae[i].pos.y = windowHeight - nebula.height/8;
 		nebulae[i].frame = 0;
 		nebulae[i].runningTime = 0.0f;
 		nebulae[i].updateTime = 0.0f;
 
-		nebulae[i].pos.x = windowDimensions[0] + i * 300;
+		nebulae[i].pos.x = windowWidth + i * 300;
 	}
 
-	float finishLine{ nebulae[sizeofNebulae - 1].pos.x };
+	float finishLine{ nebulae[sizeOfNebulae - 1].pos.x };
 
 	// nebula X velocity (pixels/second)
-	int nebVel{-100};
+	int nebVel{-200};
 
 	// Player Pawn
 	Texture2D playerSprite = LoadTexture("textures/scarfy.png");
@@ -78,8 +77,8 @@ int main()
 	player.rec.height = playerSprite.height;
 	player.rec.x = 0;
 	player.rec.y = 0;
-	player.pos.x = windowDimensions[0]/2 - player.rec.width/2;
-	player.pos.y = windowDimensions[1] - player.rec.height;
+	player.pos.x = windowWidth/2 - player.rec.width/2;
+	player.pos.y = windowHeight - player.rec.height;
 	player.frame = 0;
 	player.updateTime = 1.0/12.0;
 	player.runningTime = 0.0;
@@ -149,14 +148,91 @@ int main()
 		Vector2 fg2Pos{fgX + foreground.width*2, 0.0};
 		DrawTextureEx(foreground, fg2Pos, 0.0, 2.0, WHITE);
 
-		// Draw nebula
-		DrawTextureRec(nebula, nebulae[0].rec, nebulae[0].pos, WHITE);
-		DrawTextureRec(playerSprite, player.rec, player.pos, WHITE);
+		// TODO(Phil): Extract into void functions
+		if (isOnGround(&player))
+		{
+			velocity = 0;
+			isInAir = false;
+		}
+		else
+		{
+			velocity += gravity * dT;
+			isInAir = true;
+		}
 
+		if (IsKeyPressed(KEY_SPACE) && !isInAir)
+		{
+			velocity += jumpVel;
+		}
+
+		for (int i = 0; i < sizeOfNebulae; i++)
+		{
+			nebulae[i].pos.x += nebVel * dT;
+		}
+
+		finishLine += nebVel * dT;
+
+		player.pos.y += velocity * dT;
+
+		if (!isInAir)
+		{
+			player = updateAnimData(&player, dT, 5);
+		}
+
+		for (int i = 0; i < sizeOfNebulae; i++)
+		{
+			nebulae[i] = updateAnimData(&nebulae[i], dT, 7);
+		}
+
+		for (AnimData nebula : nebulae)
+		{
+			float pad{50};
+			Rectangle nebRec{
+				nebula.pos.x + pad,
+				nebula.pos.y + pad,
+				nebula.rec.width - 2*pad,
+				nebula.rec.height - 2*pad,
+			};
+			Rectangle playerRec{
+				player.pos.x,
+				player.pos.y,
+				player.rec.width,
+				player.rec.height,
+			};
+
+			if (CheckCollisionRecs(nebRec, playerRec))
+			{
+				collision = true;
+			}
+		}
+
+		// Handle win/lose condition
+		if (collision)
+		{
+			// If a collision has been detected we lose the game
+			DrawText("You Lose!", windowWidth/4, windowHeight/2, 40, RED);
+		}
+		else if (player.pos.x >= finishLine)
+		{
+			DrawText("You Won!", windowWidth/4, windowHeight/2, 40, RED);
+		}
+		else
+		{
+			for (int i = 0; i < sizeOfNebulae; i++)
+			{
+				DrawTextureRec(nebula, nebulae[i].rec, nebulae[i].pos, WHITE);
+			}
+			// Draw player pawn
+			DrawTextureRec(playerSprite, player.rec, player.pos, WHITE);
+		}
 		EndDrawing();
 	}
 
 	// On Exit code
+	UnloadTexture(playerSprite);
 	UnloadTexture(nebula);
+	UnloadTexture(background);
+	UnloadTexture(midground);
+	UnloadTexture(foreground);
 	CloseWindow();
 }
